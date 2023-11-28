@@ -1,0 +1,163 @@
+---
+# Project source code URL: https://github.com/lasagnapizza/lethal-company-save-editor
+
+# Enable or disable lcsave deployment
+lcsave_enabled: true
+
+# Identifier string for lcsave resources (e.g. container names, network names)
+lcsave_identifier: lcsave
+
+# The scheme used for serving lcsave (http or https)
+lcsave_scheme: https
+
+# The hostname at which lcsave is served
+lcsave_hostname: ""
+
+# The path at which lcsave is served, must either be `/` or not end with a slash (e.g. `/lcsave`)
+lcsave_path_prefix: /
+
+# Version of lcsave to deploy
+lcsave_version: latest
+
+# UID and GID for the container user
+lcsave_uid: ""
+lcsave_gid: ""
+
+# Base path for lcsave resources
+lcsave_base_path: "{{ lcsave_identifier }}"
+
+# Timezone configuration for lcsave
+lcsave_timezone: UTC
+
+# Environment to run the application
+lcsave_rails_env: production
+
+# Secret key base to encrypt in the application
+lcsave_secret_key_base: ""
+
+lcsave_container_image: "{{ lcsave_container_image_registry_prefix }}/lasagnapizza/lcsave:{{ lcsave_container_image_tag }}"
+lcsave_container_image_registry_prefix: ghcr.io
+lcsave_container_image_tag: "{{ lcsave_version }}"
+lcsave_container_image_force_pull: "{{ lcsave_container_image.endswith(':latest') }}"
+
+# The base container network. It will be auto-created by this role if it doesn't exist already.
+lcsave_container_network: "{{ lcsave_identifier }}"
+
+# A list of additional container networks that the container would be connected to.
+# The role does not create these networks, so make sure they already exist.
+# Use this to expose this container to another reverse proxy, which runs in a different container network.
+lcsave_container_additional_networks: []
+
+# lcsave_container_labels_traefik_enabled controls whether labels to assist a Traefik reverse-proxy will be attached to the container.
+# See `../templates/labels.j2` for details.
+#
+# To inject your own other container labels, see `lcsave_container_labels_additional_labels`.
+lcsave_container_labels_traefik_enabled: true
+lcsave_container_labels_traefik_docker_network: "{{ lcsave_container_network }}"
+lcsave_container_labels_traefik_hostname: "{{ lcsave_hostname }}"
+# The path prefix must either be `/` or not end with a slash (e.g. `/lcsave`).
+lcsave_container_labels_traefik_path_prefix: "{{ lcsave_path_prefix }}"
+lcsave_container_labels_traefik_rule: "Host(`{{ lcsave_container_labels_traefik_hostname }}`){% if lcsave_container_labels_traefik_path_prefix != '/' %} && PathPrefix(`{{ lcsave_container_labels_traefik_path_prefix }}`){% endif %}"
+lcsave_container_labels_traefik_priority: 0
+lcsave_container_labels_traefik_entrypoints: web-secure
+lcsave_container_labels_traefik_tls: "{{ lcsave_container_labels_traefik_entrypoints != 'web' }}"
+lcsave_container_labels_traefik_tls_certResolver: default # noqa var-naming
+
+# Controls which additional headers to attach to all HTTP responses.
+# To add your own headers, use `lcsave_container_labels_traefik_additional_response_headers_custom`
+lcsave_container_labels_traefik_additional_response_headers: "{{ lcsave_container_labels_traefik_additional_response_headers_auto | combine(lcsave_container_labels_traefik_additional_response_headers_custom) }}"
+lcsave_container_labels_traefik_additional_response_headers_auto: |
+  {{
+    {}
+    | combine ({'X-XSS-Protection': lcsave_http_header_xss_protection} if lcsave_http_header_xss_protection else {})
+    | combine ({'X-Frame-Options': lcsave_http_header_frame_options} if lcsave_http_header_frame_options else {})
+    | combine ({'X-Content-Type-Options': lcsave_http_header_content_type_options} if lcsave_http_header_content_type_options else {})
+    | combine ({'Content-Security-Policy': lcsave_http_header_content_security_policy} if lcsave_http_header_content_security_policy else {})
+    | combine ({'Permission-Policy': lcsave_http_header_content_permission_policy} if lcsave_http_header_content_permission_policy else {})
+    | combine ({'Strict-Transport-Security': lcsave_http_header_strict_transport_security} if lcsave_http_header_strict_transport_security and lcsave_container_labels_traefik_tls else {})
+  }}
+lcsave_container_labels_traefik_additional_response_headers_custom: {}
+# lcsave_container_labels_additional_labels contains a multiline string with additional labels to add to the container label file.
+# See `../templates/labels.j2` for details.
+#
+# Example:
+# lcsave_container_labels_additional_labels: |
+#   my.label=1
+#   another.label="here"
+lcsave_container_labels_additional_labels: ""
+
+# A list of extra arguments to pass to the container
+lcsave_container_extra_arguments: []
+
+# List of systemd services that lcsave.service depends on
+lcsave_systemd_required_services_list: ["docker.service"]
+
+# Specifies the value of the `X-XSS-Protection` header
+# Stops pages from loading when they detect reflected cross-site scripting (XSS) attacks.
+#
+# Learn more about it is here:
+# - https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-XSS-Protection
+# - https://portswigger.net/web-security/cross-site-scripting/reflected
+lcsave_http_header_xss_protection: "1; mode=block"
+
+# Specifies the value of the `X-Frame-Options` header which controls whether framing can happen.
+# See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options
+lcsave_http_header_frame_options: SAMEORIGIN
+
+# Specifies the value of the `X-Content-Type-Options` header.
+# See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options
+lcsave_http_header_content_type_options: nosniff
+
+# Specifies the value of the `Content-Security-Policy` header.
+# See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy
+lcsave_http_header_content_security_policy: frame-ancestors 'self'
+
+# Specifies the value of the `Permission-Policy` header.
+# See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Permission-Policy
+lcsave_http_header_content_permission_policy: "{{ 'interest-cohort=()' if lcsave_floc_optout_enabled else '' }}"
+
+# Specifies the value of the `Strict-Transport-Security` header.
+# See: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security
+lcsave_http_header_strict_transport_security: "max-age=31536000; includeSubDomains{{ '; preload' if lcsave_hsts_preload_enabled else '' }}"
+
+# Controls whether to send a "Permissions-Policy interest-cohort=();" header along with all responses
+#
+# Learn more about what it is here:
+# - https://www.eff.org/deeplinks/2021/03/googles-floc-terrible-idea
+# - https://paramdeo.com/blog/opting-your-website-out-of-googles-floc-network
+# - https://amifloced.org/
+#
+# Of course, a better solution is to just stop using browsers (like Chrome), which participate in such tracking practices.
+# See: `lcsave_content_permission_policy`
+lcsave_floc_optout_enabled: true
+
+# Controls if HSTS preloading is enabled
+#
+# In its strongest and recommended form, the [HSTS policy](https://www.chromium.org/hsts) includes all subdomains, and
+# indicates a willingness to be "preloaded" into browsers:
+# `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload`
+# For more information visit:
+# - https://en.wikipedia.org/wiki/HTTP_Strict_Transport_Security
+# - https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security
+# - https://hstspreload.org/#opt-in
+# See: `lcsave_http_header_strict_transport_security`
+lcsave_hsts_preload_enabled: false
+
+# PostgreSQL database configuration
+lcsave_database_username: lcsave
+lcsave_database_password: ""
+lcsave_database_hostname: ""
+lcsave_database_port: 5432
+lcsave_database_name: lcsave_production
+
+# Controls the RAILS_ENV environment variable
+lcsave_environment_variable_rails_env: "{{ lcsave_rails_env }}"
+
+# Controls the DATABASE_URL environment variable
+lcsave_environment_variable_database_url: "postgresql://{{ lcsave_database_username }}:{{ lcsave_database_password }}@{{ lcsave_database_hostname }}:{{ lcsave_database_port }}/{{ lcsave_database_name }}"
+
+# Controls the SECRET_KEY_BASE environment variable
+lcsave_environment_variable_secret_keybase: "{{ lcsave_secret_key_base }}"
+
+# Additional environment variables.
+lcsave_environment_variables_additional_variables: ""

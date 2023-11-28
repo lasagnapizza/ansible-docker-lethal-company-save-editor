@@ -1,0 +1,24 @@
+---
+- name: Check existence of lcsave systemd service
+  ansible.builtin.stat:
+    path: "{{ devture_systemd_docker_base_systemd_path }}/{{ lcsave_identifier }}.service"
+  register: lcsave_service_stat
+
+- when: lcsave_service_stat.stat.exists | bool
+  block:
+    - name: Ensure lcsave systemd service is stopped
+      ansible.builtin.service:
+        name: "{{ lcsave_identifier }}"
+        state: stopped
+        enabled: false
+        daemon_reload: true
+
+    - name: Ensure lcsave systemd service does not exists
+      ansible.builtin.file:
+        path: "{{ devture_systemd_docker_base_systemd_path }}/{{ lcsave_identifier }}.service"
+        state: absent
+
+    - name: Ensure lcsave path doesn't exist
+      ansible.builtin.file:
+        path: "{{ lcsave_base_path }}"
+        state: absent
